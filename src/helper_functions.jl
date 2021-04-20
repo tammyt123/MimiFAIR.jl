@@ -92,9 +92,10 @@ end
 #       start_year:      First year to run the model.
 #       end_year:        Final year to run the model.
 #       rcp_scenario:    A string indicating which RCP scenario to use ("RCP26", "RCP45", "RCP60", & "RCP85").
+#       usg_scenario:    A string indicating which USG scenario to use ("USG1", "USG2", "USG3", "USG4", & "USG5").
 #----------------------------------------------------------------------------------------------------------------------
 
-function load_fair_data(start_year::Int, end_year::Int, rcp_scenario::String)
+function load_fair_data(start_year::Int, end_year::Int, rcp_scenario::String, usg_scenario::String)
 
     # Calculate indicies to extract RCP data (RCP data spans 1765-2500)
     start_index, end_index = findall((in)([start_year, end_year]), collect(1765:2500))
@@ -108,8 +109,10 @@ function load_fair_data(start_year::Int, end_year::Int, rcp_scenario::String)
 
     # RCP scenario emissions.
     rcp_emissions_raw = DataFrame(load(joinpath(@__DIR__, "..", "data", "model_data", rcp_scenario*"_EMISSIONS.csv"), skiplines_begin=36))
+    # rcp_emissions_raw = DataFrame(load(joinpath(@__DIR__, "data", "model_data", rcp_scenario*"_EMISSIONS.csv"), skiplines_begin=36)) # personal path
     # Natural emissions for methane and nitrous oxide as estimated by FAIR team.
     natural_emissions_raw = DataFrame(load(joinpath(@__DIR__, "..", "data", "model_data", "natural_emissions.csv"), skiplines_begin=3))
+    # natural_emissions_raw = DataFrame(load(joinpath(@__DIR__, "data", "model_data", "natural_emissions.csv"), skiplines_begin=3)) # personal path
     # CMIP6 Solar forcing.
     cmip6_solar_forcing = DataFrame(load(joinpath(@__DIR__, "..", "data", "model_data", "cmip6_solar.csv"), skiplines_begin=6))[start_index:end_index, Symbol("Radiative forcing")]
     # CMIP6 volcanic forcing.
@@ -121,16 +124,142 @@ function load_fair_data(start_year::Int, end_year::Int, rcp_scenario::String)
     # Information on various gas specieis.
     gas_data = DataFrame(load(joinpath(@__DIR__, "..", "data", "model_data", "fair_ghg_species_data.csv"), skiplines_begin=10))
 
+    ## EMF CO2 emissions data
+    
+    # PAGE INPUT DATA (from Charles)
+    EMF_CO2_data = readxlsx(joinpath(@__DIR__, "..", "data", "model_data", "FAIR-NCEE", "EMF22 ref data - with extrapolations for PAGE09, 9-1-11.xlsx"))
+    # EMF_CO2_data = readxlsx(joinpath(@__DIR__, "data", "model_data", "FAIR-NCEE", "EMF22 ref data - with extrapolations for PAGE09, 9-1-11.xlsx")) # personal path
+    EMF_CO2 = EMF_CO2_data["GLOBAL extrapolations"]["C11:AZ41"] # 2000 to 2300, decadal time step
+    EMF_CO2[ismissing.(EMF_CO2)] .= 0 # replace missing values with 0 
+
+    gtco2_to_gtc = 12/44 # FAIR CO2 emissions are in GtC
+
+    annual_industrial_CO2_emissions = Dict()
+    annual_industrial_CO2_emissions["USG1"] = EMF_CO2[:,6] * gtco2_to_gtc
+    annual_industrial_CO2_emissions["USG2"] = EMF_CO2[:,16] * gtco2_to_gtc 
+    annual_industrial_CO2_emissions["USG3"] = EMF_CO2[:,26] * gtco2_to_gtc
+    annual_industrial_CO2_emissions["USG4"] = EMF_CO2[:,36] * gtco2_to_gtc
+    annual_industrial_CO2_emissions["USG5"] = EMF_CO2[:,46] * gtco2_to_gtc
+
+    annual_land_CO2_emissions = Dict()
+    annual_land_CO2_emissions["USG1"] = EMF_CO2[:,10] * gtco2_to_gtc
+    annual_land_CO2_emissions["USG2"] = EMF_CO2[:,20] * gtco2_to_gtc
+    annual_land_CO2_emissions["USG3"] = EMF_CO2[:,30] * gtco2_to_gtc
+    annual_land_CO2_emissions["USG4"] = EMF_CO2[:,40] * gtco2_to_gtc
+    annual_land_CO2_emissions["USG5"] = EMF_CO2[:,50] * gtco2_to_gtc
+
+    # annual_CO2_emissions = Dict()
+    # annual_CO2_emissions["USG1"] = EMF_CO2[:,6] + EMF_CO2[:,10] # sum of land and industrial CO2, GtCO2/year
+    # annual_CO2_emissions["USG2"] = EMF_CO2[:,16] + EMF_CO2[:,20]
+    # annual_CO2_emissions["USG3"] = EMF_CO2[:,26] + EMF_CO2[:,30]
+    # annual_CO2_emissions["USG4"] = EMF_CO2[:,36] + EMF_CO2[:,40]
+    # annual_CO2_emissions["USG5"] = EMF_CO2[:,46] + EMF_CO2[:,50]
+    
+    old_years = collect(2000:10:2300) # EMF emissions years
+    annual_years = collect(2000:1:2300)
+
+    for scen in ["USG1", "USG2", "USG3", "USG4", "USG5"]
+        annual_industrial_CO2_emissions[scen] = MimiIWG._interpolate(annual_industrial_CO2_emissions[scen], old_years, annual_years)
+        annual_land_CO2_emissions[scen] = MimiIWG._interpolate(annual_land_CO2_emissions[scen], old_years, annual_years)
+    end
+
+    # merge with RCP CO2 emissions for pre-2000: RCP8.5 with USG1-4 and RCP4.5 with USG5
+
+    # RCP8.5 scenario emissions.
+    rcp85_emissions_raw = DataFrame(load(joinpath(@__DIR__, "..", "data", "model_data", "RCP85_EMISSIONS.csv"), skiplines_begin=36))
+    # rcp85_emissions_raw = DataFrame(load(joinpath(@__DIR__, "data", "model_data", "RCP85_EMISSIONS.csv"), skiplines_begin=36)) # personal path
+
+    # rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,:] # pre-2000
+    # rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,2] # pre-2000 fossil (industrial) CO2
+    # rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,3] # pre-2000 other (land) CO2
+
+    # RCP4.5 scenario emissions.
+    rcp45_emissions_raw = DataFrame(load(joinpath(@__DIR__, "..", "data", "model_data", "RCP45_EMISSIONS.csv"), skiplines_begin=36))
+    # rcp45_emissions_raw = DataFrame(load(joinpath(@__DIR__, "data", "model_data", "RCP45_EMISSIONS.csv"), skiplines_begin=36)) # personal path
+
+    # rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2000,:] # pre-2000
+    # rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2000,2] # pre-2000 fossil (industrial) CO2
+    # rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2000,3] # pre-2000 other (land) CO2
+
+    # merge industrial CO2
+    annual_industrial_CO2_emissions["USG1"] = append!(rcp85_emissions_raw.FossilCO2[rcp85_emissions_raw[:,1].<2000], annual_industrial_CO2_emissions["USG1"])
+    annual_industrial_CO2_emissions["USG2"] = append!(rcp85_emissions_raw.FossilCO2[rcp85_emissions_raw[:,1].<2000], annual_industrial_CO2_emissions["USG2"])
+    annual_industrial_CO2_emissions["USG3"] = append!(rcp85_emissions_raw.FossilCO2[rcp85_emissions_raw[:,1].<2000], annual_industrial_CO2_emissions["USG3"])
+    annual_industrial_CO2_emissions["USG4"] = append!(rcp85_emissions_raw.FossilCO2[rcp85_emissions_raw[:,1].<2000], annual_industrial_CO2_emissions["USG4"])
+    annual_industrial_CO2_emissions["USG5"] = append!(rcp45_emissions_raw.FossilCO2[rcp45_emissions_raw[:,1].<2000], annual_industrial_CO2_emissions["USG5"]) # merge USG5 with RCP4.5
+
+    # annual_industrial_CO2_emissions
+
+    # merge land CO2 (column 3 is "other CO2")
+    annual_land_CO2_emissions["USG1"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,3], annual_land_CO2_emissions["USG1"])
+    annual_land_CO2_emissions["USG2"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,3], annual_land_CO2_emissions["USG2"])
+    annual_land_CO2_emissions["USG3"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,3], annual_land_CO2_emissions["USG3"])
+    annual_land_CO2_emissions["USG4"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2000,3], annual_land_CO2_emissions["USG4"])
+    annual_land_CO2_emissions["USG5"] = append!(rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2000,3], annual_land_CO2_emissions["USG5"]) # merge USG5 with RCP4.5
+
+    # annual_land_CO2_emissions
+
+    ## EMF N2O and CH4 emissions data
+    EMF_N2O_CH4 = readxlsx(joinpath(@__DIR__, "..", "data", "model_data", "FAIR-NCEE", "CH4N20emissions_annualversion.xlsx"))
+    # EMF_N2O_CH4 = readxlsx(joinpath(@__DIR__, "data", "model_data", "FAIR-NCEE", "CH4N20emissions_annualversion.xlsx")) # personal path
+    
+    # N2O
+    EMF_N2O = EMF_N2O_CH4["N20annual"]["B2:F297"] # 2005 to 2300, annual
+    annual_N2O_emissions = Dict()
+    annual_N2O_emissions["USG1"] = EMF_N2O[:,1]
+    annual_N2O_emissions["USG2"] = EMF_N2O[:,2]
+    annual_N2O_emissions["USG3"] = EMF_N2O[:,3]
+    annual_N2O_emissions["USG4"] = EMF_N2O[:,4]
+    annual_N2O_emissions["USG5"] = EMF_N2O[:,5]
+    
+    # CH4
+    EMF_CH4 = EMF_N2O_CH4["CH4annual"]["B2:F297"] # 2005 to 2300, annual
+    annual_CH4_emissions = Dict()
+    annual_CH4_emissions["USG1"] = EMF_CH4[:,1]
+    annual_CH4_emissions["USG2"] = EMF_CH4[:,2]
+    annual_CH4_emissions["USG3"] = EMF_CH4[:,3]
+    annual_CH4_emissions["USG4"] = EMF_CH4[:,4]
+    annual_CH4_emissions["USG5"] = EMF_CH4[:,5]
+
+    # merge with RCP N2O emissions for pre-2005
+
+    rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,5] # RCP8.5 pre-2005 N2O
+    rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2005,5] # RCP4.5 pre-2005 N2O
+
+    annual_N2O_emissions["USG1"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,5], annual_N2O_emissions["USG1"])
+    annual_N2O_emissions["USG2"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,5], annual_N2O_emissions["USG2"])
+    annual_N2O_emissions["USG3"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,5], annual_N2O_emissions["USG3"])
+    annual_N2O_emissions["USG4"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,5], annual_N2O_emissions["USG4"])
+    annual_N2O_emissions["USG5"] = append!(rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2005,5], annual_N2O_emissions["USG5"]) # merge USG5 with RCP4.5
+
+    # merge with RCP CH4 emissions for pre-2005
+
+    rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,4] # RCP8.5 pre-2005 CH4
+    rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2005,4] # RCP4.5 pre-2005 CH4
+
+    annual_CH4_emissions["USG1"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,4], annual_CH4_emissions["USG1"])
+    annual_CH4_emissions["USG2"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,4], annual_CH4_emissions["USG2"])
+    annual_CH4_emissions["USG3"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,4], annual_CH4_emissions["USG3"])
+    annual_CH4_emissions["USG4"] = append!(rcp85_emissions_raw[rcp85_emissions_raw[:,1].<2005,4], annual_CH4_emissions["USG4"])
+    annual_CH4_emissions["USG5"] = append!(rcp45_emissions_raw[rcp45_emissions_raw[:,1].<2005,5], annual_CH4_emissions["USG5"]) # merge USG5 with RCP4.5
+
+    # Calculate new index for years 1765:2300
+    new_start_index, new_end_index = findall((in)([start_year, end_year]), collect(1765:2300))
+
     #---------------------------------------
     # Emissions
     #---------------------------------------
     emissions = DataFrame()
 
-    emissions.FossilCO2   = rcp_emissions_raw[start_index:end_index, :FossilCO2]
-    emissions.OtherCO2    = rcp_emissions_raw[start_index:end_index, :OtherCO2]
-    emissions.CH4         = rcp_emissions_raw[start_index:end_index, :CH4]
+    # emissions.FossilCO2   = rcp_emissions_raw[start_index:end_index, :FossilCO2]
+    # emissions.OtherCO2    = rcp_emissions_raw[start_index:end_index, :OtherCO2]
+    emissions.FossilCO2     = annual_industrial_CO2_emissions[usg_scenario][new_start_index:new_end_index] 
+    emissions.OtherCO2      = annual_land_CO2_emissions[usg_scenario][new_start_index:new_end_index] 
+    # emissions.CH4         = rcp_emissions_raw[start_index:end_index, :CH4]
+    emissions.CH4         = annual_CH4_emissions[usg_scenario][new_start_index:new_end_index]
     emissions.NaturalCH4  = natural_emissions_raw[start_index:end_index, :ch4]
-    emissions.N2O         = rcp_emissions_raw[start_index:end_index, :N2O]
+    # emissions.N2O         = rcp_emissions_raw[start_index:end_index, :N2O]
+    emissions.N2O         = annual_N2O_emissions[usg_scenario][new_start_index:new_end_index]
     emissions.NaturalN2O  = natural_emissions_raw[start_index:end_index, :n2o]
     emissions.NMVOC       = rcp_emissions_raw[start_index:end_index, :NMVOC]
     emissions.CO          = rcp_emissions_raw[start_index:end_index, :CO]
