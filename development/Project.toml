@@ -1,0 +1,8 @@
+[deps]
+CSVFiles = "5d742f6a-9f54-50ce-8119-2520741973ca"
+MimiDICE2016 = "ab869bb0-c23d-11e9-310e-47ac58ee0562"
+MimiFAIR = "73d86c50-c5fa-11e9-3497-c3dc913e627a"
+MimiIWG = "b1d80750-afbf-11e9-0666-4f25b2ea2b65"
+Plotly = "58dd65bb-95f3-509e-9936-c39a10fdeae7"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
