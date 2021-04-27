@@ -4,6 +4,8 @@ using Mimi
 using DataFrames
 using CSVFiles
 using NLsolve
+using XLSX: readxlsx
+using MimiIWG
 
 include("helper_functions.jl")
 include("components/aerosol_direct_rf.jl")
@@ -24,14 +26,23 @@ include("components/temperature.jl")
 include("components/total_rf.jl")
 include("components/trop_o3_rf.jl")
 
-function get_model(;rcp_scenario::String="RCP85", start_year::Int=1765, end_year::Int=2500, F2x::Float64=3.71, TCR::Float64=1.6, ECS::Float64=2.75, d::Array{Float64,1}=[239.0, 4.1])
+function get_model(;start_year::Int=1765, end_year::Int=2300, F2x::Float64=3.71, TCR::Float64=1.6, ECS::Float64=2.75, d::Array{Float64,1}=[239.0, 4.1], usg_scenario::String)
+
+    # Choose RCP scenario depending on USG scenario selected
+    if usg_scenario in ["USG1", "USG2", "USG3", "USG4"]
+        rcp_scenario = "RCP85"
+    elseif usg_scenario == "USG5"
+        rcp_scenario = "RCP45"
+    else
+        error("Must provide USG scenario: \"USG1\", \"USG2\", \"USG3\", \"USG4\", or \"USG5\".")
+    end
 
     # ---------------------------------------------
     # Set up some data.
     # ---------------------------------------------
 
     # Load RCP and other data needed to construct FAIR.
-    rcp_emissions, volcano_forcing, solar_forcing, gas_data, gas_fractions, conversions = load_fair_data(start_year, end_year, rcp_scenario)
+    rcp_emissions, volcano_forcing, solar_forcing, gas_data, gas_fractions, conversions = load_fair_data(start_year, end_year, rcp_scenario, usg_scenario)
 
     # Names of minor greenhouse gases and ozone-depleting substances.
     other_ghg_names = ["CF4", "C2F6", "C6F14", "HFC23", "HFC32", "HFC43_10", "HFC125", "HFC134a", "HFC143a", "HFC227ea", "HFC245fa", "SF6", "CFC_11", "CFC_12", "CFC_113", "CFC_114", "CFC_115", "CARB_TET", "MCF", "HCFC_22", "HCFC_141B", "HCFC_142B", "HALON1211", "HALON1202", "HALON1301", "HALON2402", "CH3BR", "CH3CL"]
@@ -40,7 +51,7 @@ function get_model(;rcp_scenario::String="RCP85", start_year::Int=1765, end_year
     # Calculate CO₂ radiative forcing scaling term (to keep forcing from 2x CO₂ consistent).
     scale_co2_forcing = co2_rf_scale(F2x, gas_data[gas_data.gas .== "CO2", :pi_conc][1], gas_data[gas_data.gas .== "N2O", :pi_conc][1])
 
-    # Calcualte coefficients of slow and fast temperature change in each timestep based on user=specified parameters.
+    # Calculate coefficients of slow and fast temperature change in each timestep based on user=specified parameters.
     q = calculate_q(TCR, ECS, d, F2x)
 
     # Number of time periods to run model.
