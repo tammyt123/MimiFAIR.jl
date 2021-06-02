@@ -318,3 +318,56 @@ function load_fair_data(start_year::Int, end_year::Int, rcp_scenario::String, us
 
     return emissions, cmip6_volcano_forcing, cmip6_solar_forcing, gas_data, gas_fractions, emiss_conversions
 end
+
+#######################################################################################################################
+# ADD PULSE OF CO2 EMISSIONS TO GIVEN YEAR
+########################################################################################################################
+# Description: Add a pulse of CO2 emissions to a given year.
+#
+# Function Arguments:
+#
+#       usg_scenario:     USG scenario (choose from "USG1", "USG2", "USG3", "USG4", "USG5").
+#       pulse_year:       Pulse year for SCC calculation.
+#       pulse_size:       Pulse size. Will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0)
+#----------------------------------------------------------------------------------------------------------------------
+
+function get_marginal_fair_model(;usg_scenario::String, pulse_year::Int, pulse_size::Float64=1.0)
+    # get baseline FAIR model
+    m = MimiFAIR.get_model(usg_scenario = usg_scenario)
+    run(m)
+
+    # get pulse year index
+    pulse_year_index = findall((in)([pulse_year]), collect(1765:2300))
+    
+    # perturb CO2 emissions
+    new_emissions = m[:co2_cycle, :E_CO₂]
+    new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 12/44) # emissions are in GtC, convert emissions pulse to GtCO2
+
+    # update emissions parameter
+    MimiFAIR.update_param!(m, :E_CO₂, new_emissions)
+    run(m)
+
+    return(m)
+
+end
+
+
+#######################################################################################################################
+# GET TEMPERATURE VECTOR FROM PERTURBED FAIR MODEL
+########################################################################################################################
+# Description: Returns temperature vector from perturbed FAIR model.
+#
+# Function Arguments:
+#
+#       usg_scenario:     USG scenario (choose from "USG1", "USG2", "USG3", "USG4", "USG5").
+#       pulse_year:       Pulse year for SCC calculation.
+#----------------------------------------------------------------------------------------------------------------------
+
+function get_perturbed_fair_temperature(;usg_scenario::String, pulse_year::Int)
+    m = MimiFAIR.get_marginal_fair_model(usg_scenario = usg_scenario, pulse_year = pulse_year)
+
+    perturbed_temp = m[:temperature, :T]
+   
+    return(perturbed_temp)
+
+end
