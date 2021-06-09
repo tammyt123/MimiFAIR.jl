@@ -331,7 +331,7 @@ end
 #       pulse_size:       Pulse size. Will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0)
 #----------------------------------------------------------------------------------------------------------------------
 
-function get_marginal_fair_model(;usg_scenario::String, pulse_year::Int, pulse_size::Float64=1.0)
+function get_marginal_fair_model(;usg_scenario::String, pulse_year::Int, pulse_size::Float64=1.0, gas::Symbol=:CO2)
     # get baseline FAIR model
     m = MimiFAIR.get_model(usg_scenario = usg_scenario)
     run(m)
@@ -339,12 +339,33 @@ function get_marginal_fair_model(;usg_scenario::String, pulse_year::Int, pulse_s
     # get pulse year index
     pulse_year_index = findall((in)([pulse_year]), collect(1765:2300))
     
-    # perturb CO2 emissions
-    new_emissions = m[:co2_cycle, :E_CO₂]
-    new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 12/44) # emissions are in GtC, convert emissions pulse to GtCO2
+    if gas == :CO2
+        # perturb CO2 emissions
+        new_emissions = m[:co2_cycle, :E_CO₂]
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 12/44) # emissions are in GtC, convert emissions pulse to GtCO2
 
-    # update emissions parameter
-    MimiFAIR.update_param!(m, :E_CO₂, new_emissions)
+        # update emissions parameter
+        MimiFAIR.update_param!(m, :E_CO₂, new_emissions)
+
+    elseif gas == :N2O
+        # perturb N2O emissions
+        new_emissions = m[:n2o_cycle, :fossil_emiss_N₂O]
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 1e3) # N2O emissions are in Mt, multiply by 1e3 to make it a 1Gt pulse (consistent with CO2)
+
+        # update emissions parameter
+        MimiFAIR.update_param!(m, :fossil_emiss_N₂O, new_emissions)
+
+    elseif gas == :CH4
+        # perturb CH4 emissions
+        new_emissions = m[:ch4_cycle, :fossil_emiss_CH₄]
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 1e3) # CH4 emissions are in Mt
+
+        # update emissions parameter
+        MimiFAIR.update_param!(m, :fossil_emiss_CH₄, new_emissions)
+    else
+        error("Gas not recognized. Available gases are :CO2, :N2O, and :CH4")
+    end
+    
     run(m)
 
     return(m)
