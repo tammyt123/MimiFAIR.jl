@@ -328,7 +328,8 @@ end
 #
 #       usg_scenario:     USG scenario (choose from "USG1", "USG2", "USG3", "USG4", "USG5").
 #       pulse_year:       Pulse year for SCC calculation.
-#       pulse_size:       Pulse size. Will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0)
+#       pulse_size:       Pulse size in Gt. For gas = :CO2, will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0).
+#       gas:              Gas to perturb (CO2, CH4, or N2O)
 #----------------------------------------------------------------------------------------------------------------------
 
 function get_marginal_fair_model(;usg_scenario::String, pulse_year::Int, pulse_size::Float64=1.0, gas::Symbol=:CO2)
@@ -382,10 +383,12 @@ end
 #
 #       usg_scenario:     USG scenario (choose from "USG1", "USG2", "USG3", "USG4", "USG5").
 #       pulse_year:       Pulse year for SCC calculation.
+#       gas:              Gas to perturb (CO2, CH4, or N2O)
+#       pulse_size:       Pulse size in Gt. For gas = :CO2, will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0).
 #----------------------------------------------------------------------------------------------------------------------
 
-function get_perturbed_fair_temperature(;usg_scenario::String, pulse_year::Int)
-    m = MimiFAIR.get_marginal_fair_model(usg_scenario = usg_scenario, pulse_year = pulse_year)
+function get_perturbed_fair_temperature(;usg_scenario::String, pulse_year::Int, gas::Symbol=:CO2, pulse_size::Float64=1.0)
+    m = MimiFAIR.get_marginal_fair_model(usg_scenario = usg_scenario, pulse_year = pulse_year, gas = gas, pulse_size = pulse_size)
 
     perturbed_temp = m[:temperature, :T]
    
