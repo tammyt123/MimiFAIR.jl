@@ -200,6 +200,8 @@ end
 #       pulse_year:       Pulse year for SCC calculation.
 #       pulse_size:       Pulse size in Gt. For gas = :CO2, will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0).
 #       gas:              Gas to perturb (CO2, CH4, or N2O)
+#       rcp_scenario:     RCP scenario ("RCP26", "RCP45", "RCP60" or "RCP85")
+#       end_year:         Model end year; defaults to 2300 (modified from 2500 in original FAIR)
 #----------------------------------------------------------------------------------------------------------------------
 
 function get_marginal_fair_model(;pulse_year::Int, pulse_size::Float64=1.0, gas::Symbol=:CO2, rcp_scenario::String="RCP85", end_year::Int=2300)
@@ -254,13 +256,12 @@ end
 #       pulse_year:       Pulse year for SCC calculation.
 #       gas:              Gas to perturb (CO2, CH4, or N2O)
 #       pulse_size:       Pulse size in Gt. For gas = :CO2, will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0).
+#       rcp_scenario:     RCP scenario ("RCP26", "RCP45", "RCP60" or "RCP85")
+#       end_year:         Model end year; defaults to 2300 (modified from 2500 in original FAIR)
 #----------------------------------------------------------------------------------------------------------------------
 
 function get_perturbed_fair_temperature(;rcp_scenario::String="RCP85", pulse_year::Int, gas::Symbol=:CO2, pulse_size::Float64=1.0, end_year::Int=2300)
     m = MimiFAIR.get_marginal_fair_model(pulse_year = pulse_year, gas = gas, pulse_size = pulse_size, end_year = end_year, rcp_scenario = rcp_scenario)
-
     perturbed_temp = m[:temperature, :T]
-   
     return(perturbed_temp)
-
 end
