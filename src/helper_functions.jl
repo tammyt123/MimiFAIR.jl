@@ -189,3 +189,78 @@ function load_fair_data(start_year::Int, end_year::Int, rcp_scenario::String)
 
     return emissions, cmip6_volcano_forcing, cmip6_solar_forcing, gas_data, gas_fractions, emiss_conversions
 end
+
+#######################################################################################################################
+# ADD PULSE OF EMISSIONS TO GIVEN YEAR
+########################################################################################################################
+# Description: Add a pulse of emissions to a given year.
+#
+# Function Arguments:
+#
+#       pulse_year:       Pulse year for SCC calculation.
+#       pulse_size:       Pulse size in Gt. For gas = :CO2, will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0).
+#       gas:              Gas to perturb (CO2, CH4, or N2O)
+#----------------------------------------------------------------------------------------------------------------------
+
+function get_marginal_fair_model(;pulse_year::Int, pulse_size::Float64=1.0, gas::Symbol=:CO2, rcp_scenario::String="RCP85", end_year::Int=2300)
+    # get baseline FAIR model
+    m = MimiFAIR.get_model(rcp_scenario = rcp_scenario, end_year = end_year)
+    run(m)
+
+    # get pulse year index
+    pulse_year_index = findall((in)([pulse_year]), collect(1765:2300))
+    
+    if gas == :CO2
+        # perturb CO2 emissions
+        new_emissions = m[:co2_cycle, :E_CO₂]
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 12/44) # emissions are in GtC, convert emissions pulse to GtCO2
+
+        # update emissions parameter
+        MimiFAIR.update_param!(m, :E_CO₂, new_emissions)
+
+    elseif gas == :N2O
+        # perturb N2O emissions
+        new_emissions = m[:n2o_cycle, :fossil_emiss_N₂O]
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 1e3) # N2O emissions are in Mt, multiply by 1e3 to make it a 1Gt pulse (consistent with CO2)
+
+        # update emissions parameter
+        MimiFAIR.update_param!(m, :fossil_emiss_N₂O, new_emissions)
+
+    elseif gas == :CH4
+        # perturb CH4 emissions
+        new_emissions = m[:ch4_cycle, :fossil_emiss_CH₄]
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 1e3) # CH4 emissions are in Mt
+
+        # update emissions parameter
+        MimiFAIR.update_param!(m, :fossil_emiss_CH₄, new_emissions)
+    else
+        error("Gas not recognized. Available gases are :CO2, :N2O, and :CH4")
+    end
+    
+    run(m)
+
+    return(m)
+
+end
+
+
+#######################################################################################################################
+# GET TEMPERATURE VECTOR FROM PERTURBED FAIR MODEL
+########################################################################################################################
+# Description: Returns temperature vector from perturbed FAIR model.
+#
+# Function Arguments:
+#
+#       pulse_year:       Pulse year for SCC calculation.
+#       gas:              Gas to perturb (CO2, CH4, or N2O)
+#       pulse_size:       Pulse size in Gt. For gas = :CO2, will be converted to GtCO2 in function body (hence if you want a 1GtCO2 pulse, enter pulse_size = 1.0).
+#----------------------------------------------------------------------------------------------------------------------
+
+function get_perturbed_fair_temperature(;rcp_scenario::String="RCP85", pulse_year::Int, gas::Symbol=:CO2, pulse_size::Float64=1.0, end_year::Int=2300)
+    m = MimiFAIR.get_marginal_fair_model(pulse_year = pulse_year, gas = gas, pulse_size = pulse_size, end_year = end_year, rcp_scenario = rcp_scenario)
+
+    perturbed_temp = m[:temperature, :T]
+   
+    return(perturbed_temp)
+
+end
