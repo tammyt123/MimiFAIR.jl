@@ -223,7 +223,7 @@ function get_marginal_fair_model(;pulse_year::Int, pulse_size::Float64=1.0, gas:
     elseif gas == :N2O
         # perturb N2O emissions
         new_emissions = m[:n2o_cycle, :fossil_emiss_N₂O]
-        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 28/44) # N2O emissions are in MtN2, multiply by 28/44 to make it a 1MtN2O pulse
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 1e3 * 28/44) # N2O emissions are in MtN2, multiply by 28/44 *1e3 to make it a 1GtN2O pulse
 
         # update emissions parameter
         MimiFAIR.update_param!(m, :fossil_emiss_N₂O, new_emissions)
@@ -231,7 +231,7 @@ function get_marginal_fair_model(;pulse_year::Int, pulse_size::Float64=1.0, gas:
     elseif gas == :CH4
         # perturb CH4 emissions
         new_emissions = m[:ch4_cycle, :fossil_emiss_CH₄]
-        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ pulse_size # CH4 emissions are in MtCH4
+        new_emissions[pulse_year_index] = new_emissions[pulse_year_index] .+ (pulse_size * 1e3) # CH4 emissions are in MtCH4, multiply by 1e3 to get 1GtCH4
 
         # update emissions parameter
         MimiFAIR.update_param!(m, :fossil_emiss_CH₄, new_emissions)
